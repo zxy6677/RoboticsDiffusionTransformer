@@ -35,7 +35,7 @@ def log_sample_res(
         image_embeds = vision_encoder(images.reshape(-1, C, H, W)).detach()
         image_embeds = image_embeds.reshape((batch_size, -1, vision_encoder.hidden_size))
         
-        lang_attn_mask = batch["lang_attn_mask"]
+        lang_attn_mask = batch["lang_attn_mask"].to(dtype=weight_dtype)
         text_embeds = batch["lang_embeds"].to(dtype=weight_dtype) \
             if args.precomp_lang_embed \
             else text_encoder(
@@ -49,7 +49,7 @@ def log_sample_res(
             img_tokens=image_embeds,
             state_tokens=states,
             action_mask=state_elem_mask.unsqueeze(1),
-            ctrl_freqs=ctrl_freqs
+            ctrl_freqs=ctrl_freqs.to(dtype=weight_dtype)
         )
         
         num_steps = pred_actions.shape[1]

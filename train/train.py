@@ -101,7 +101,7 @@ def train(args, logger):
         datefmt="%m/%d/%Y %H:%M:%S",
         level=logging.INFO,
     )
-    logger.info(accelerator.state, main_process_only=False)
+    logger.info(accelerator.state)
     if accelerator.is_local_main_process:
         transformers.utils.logging.set_verbosity_warning()
         diffusers.utils.logging.set_verbosity_info()

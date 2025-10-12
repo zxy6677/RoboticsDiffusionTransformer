@@ -42,18 +42,18 @@ class RDTRunner(
             config['lang_adaptor'], 
             in_features=lang_token_dim, 
             out_features=hidden_size
-        )
+        ).to(dtype=dtype)
         self.img_adaptor = self.build_condition_adapter(
             config['img_adaptor'], 
             in_features=img_token_dim, 
             out_features=hidden_size
-        )
+        ).to(dtype=dtype)
         # A `state` refers to an action or a proprioception vector
         self.state_adaptor = self.build_condition_adapter(
             config['state_adaptor'], 
             in_features=state_token_dim * 2,    # state + state mask (indicator)
             out_features=hidden_size
-        )
+        ).to(dtype=dtype)
         
         # Create the noise scheduler
         noise_scheduler_config = config['noise_scheduler']

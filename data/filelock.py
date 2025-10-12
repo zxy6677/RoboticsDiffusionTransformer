@@ -1,24 +1,59 @@
-import fcntl
+"""
+简单的文件锁实现
+"""
 
+import os
+import time
+import fcntl
+import errno
+from contextlib import contextmanager
 
 class FileLock:
-    """
-    A file lock class.
-    """
-    def __init__(self, filename):
-        self.filename = filename
-        self.handle = None
+    """简单的文件锁类"""
+    
+    def __init__(self, lock_file, timeout=10):
+        self.lock_file = lock_file
+        self.timeout = timeout
+        self.fd = None
+    
+    def acquire(self):
+        """获取锁"""
+        start_time = time.time()
+        while True:
+            try:
+                self.fd = os.open(self.lock_file, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                return True
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
+                if time.time() - start_time > self.timeout:
+                    return False
+                time.sleep(0.1)
+    
+    def release(self):
+        """释放锁"""
+        if self.fd is not None:
+            os.close(self.fd)
+            try:
+                os.unlink(self.lock_file)
+            except OSError:
+                pass
+            self.fd = None
+    
+    def __enter__(self):
+        if not self.acquire():
+            raise TimeoutError(f"无法获取锁: {self.lock_file}")
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
 
-    def acquire_read_lock(self):
-        self.handle = open(self.filename + '.lock', 'r')
-        fcntl.flock(self.handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
-
-    def acquire_write_lock(self):
-        self.handle = open(self.filename + '.lock', 'w')
-        fcntl.flock(self.handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-
-    def release_lock(self):
-        if self.handle is not None:
-            fcntl.flock(self.handle, fcntl.LOCK_UN)
-            self.handle.close()
-            self.handle = None
+@contextmanager
+def file_lock(lock_file, timeout=10):
+    """文件锁上下文管理器"""
+    lock = FileLock(lock_file, timeout)
+    try:
+        lock.acquire()
+        yield lock
+    finally:
+        lock.release()
