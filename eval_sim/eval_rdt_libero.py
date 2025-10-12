@@ -16,9 +16,9 @@ import cv2
 from datetime import datetime
 
 # 添加路径
-sys.path.append('/home/ubuntu/LIBERO/libero')
-sys.path.append('/home/ubuntu/LIBERO/libero/libero')
-sys.path.append('/home/ubuntu/RoboticsDiffusionTransformer')
+sys.path.append('../../LIBERO/libero')
+sys.path.append('../../LIBERO/libero/libero')
+sys.path.append('..')
 
 # 导入LIBERO模块
 import libero
@@ -30,7 +30,7 @@ import importlib.util
 import sys
 
 # 动态导入configs.state_vec
-spec = importlib.util.spec_from_file_location("state_vec", "/home/ubuntu/RoboticsDiffusionTransformer/configs/state_vec.py")
+spec = importlib.util.spec_from_file_location("state_vec", "../configs/state_vec.py")
 state_vec_module = importlib.util.module_from_spec(spec)
 sys.modules["state_vec"] = state_vec_module
 spec.loader.exec_module(state_vec_module)
@@ -439,7 +439,7 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
         print(f"🎥 视频录制已启用，输出目录: {video_output_dir}")
     
     # 设置LIBERO环境
-    libero.set_libero_default_path("/home/ubuntu/LIBERO/libero/libero")
+    libero.set_libero_default_path("../../LIBERO/libero/libero")
     
     # 获取基准
     benchmark_dict = benchmark.get_benchmark_dict()
@@ -620,11 +620,11 @@ def main():
     parser = argparse.ArgumentParser(description="RDT在LIBERO上的推理评估")
     parser.add_argument("--config", type=str, default="configs/base.yaml",
                        help="RDT配置文件路径")
-    parser.add_argument("--pretrained", type=str, default="/home/ubuntu/rdt-1b",
+    parser.add_argument("--pretrained", type=str, default="checkpoints/rdt-1b",
                        help="预训练模型路径")
-    parser.add_argument("--text_encoder", type=str, default="/home/ubuntu/t5-v1_1-xxl",
+    parser.add_argument("--text_encoder", type=str, default="google/t5-v1_1-xxl",
                        help="文本编码器路径")
-    parser.add_argument("--vision_encoder", type=str, default="/home/ubuntu/siglip-so400m-patch14-384",
+    parser.add_argument("--vision_encoder", type=str, default="google/siglip-so400m-patch14-384",
                        help="视觉编码器路径")
     parser.add_argument("--benchmark", type=str, default="libero_90",
                        help="LIBERO基准名称")

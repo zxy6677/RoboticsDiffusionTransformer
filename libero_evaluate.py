@@ -15,9 +15,9 @@ import json
 from datetime import datetime
 
 # 添加路径
-sys.path.append('/home/ubuntu/LIBERO/libero')
-sys.path.append('/home/ubuntu/LIBERO/libero/libero')
-sys.path.append('/home/ubuntu/RoboticsDiffusionTransformer')
+sys.path.append('../../LIBERO/libero')
+sys.path.append('../../LIBERO/libero/libero')
+sys.path.append('.')
 
 import libero
 from libero import benchmark
@@ -29,7 +29,7 @@ from models.multimodal_encoder.siglip_encoder import SiglipVisionTower
 import importlib.util
 
 # 动态导入state_vec
-spec = importlib.util.spec_from_file_location("state_vec", "/home/ubuntu/RoboticsDiffusionTransformer/configs/state_vec.py")
+spec = importlib.util.spec_from_file_location("state_vec", "configs/state_vec.py")
 state_vec_module = importlib.util.module_from_spec(spec)
 sys.modules["state_vec"] = state_vec_module
 spec.loader.exec_module(state_vec_module)
@@ -370,7 +370,7 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
         print(f"🎥 视频录制已启用，输出目录: {video_output_dir}")
     
     # 设置LIBERO环境
-    libero.set_libero_default_path("/home/ubuntu/LIBERO/libero/libero")
+    libero.set_libero_default_path("../../LIBERO/libero/libero")
     
     # 获取基准
     benchmark_dict = benchmark.get_benchmark_dict()
@@ -557,3 +557,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+

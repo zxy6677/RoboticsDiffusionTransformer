@@ -123,3 +123,5 @@ python libero_evaluate.py \
 - **代码清理**: ✅ 完成
 
 现在您有了完整的RDT在LIBERO上的微调和评估流程！
+
+
