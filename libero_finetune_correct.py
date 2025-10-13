@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--output_dir", type=str, default="checkpoints/libero_finetune", help="输出目录")
     parser.add_argument("--cuda_device", type=str, default="0", help="CUDA设备ID (0, 1, 2, ...)")
     parser.add_argument("--use_deepspeed", action="store_true", help="是否使用DeepSpeed")
-    parser.add_argument("--checkpointing_period", type=int, default=500, help="检查点保存周期")
+    parser.add_argument("--checkpointing_period", type=int, default=5000, help="检查点保存周期")
     parser.add_argument("--sample_period", type=int, default=250, help="验证采样周期")
     parser.add_argument("--checkpoints_total_limit", type=int, default=60, help="最大检查点数量")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=2, help="梯度累积步数")
@@ -87,10 +87,10 @@ def main():
         "--adam_epsilon=1e-8"
     ])
     
-    # 设置只在训练完成时保存模型
+    # 设置检查点保存
     cmd.extend([
-        f"--checkpointing_period={args.max_steps}",  # 设置检查点周期为最大步数，只在最后保存
-        "--checkpoints_total_limit=1"  # 只保留1个检查点
+        f"--checkpointing_period={args.checkpointing_period}",  # 使用命令行参数设置检查点周期
+        f"--checkpoints_total_limit={args.checkpoints_total_limit}"  # 使用命令行参数设置检查点数量限制
     ])
     
     print(f"🔧 执行命令: {' '.join(cmd)}")
