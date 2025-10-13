@@ -46,9 +46,10 @@ def main():
     print(f"📊 最大训练步数: {args.max_steps}")
     print(f"📦 批次大小: {args.batch_size}")
     print(f"📈 学习率: {args.learning_rate}")
-    print(f"💾 检查点保存周期: {args.checkpointing_period}")
     print(f"🔍 验证采样周期: {args.sample_period}")
     print(f"⚡ 使用DeepSpeed: {args.use_deepspeed}")
+    print(f"💾 保存策略: 只在训练完成时保存模型 (第{args.max_steps}步)")
+    print(f"🎯 检查点限制: 最多保留1个检查点")
     
     # 构建训练命令，基于README中的指导
     if args.use_deepspeed:
@@ -66,11 +67,9 @@ def main():
         "--pretrained_vision_encoder_name_or_path=google/siglip-so400m-patch14-384",
         f"--output_dir={output_dir}",
         f"--train_batch_size={args.batch_size}",
-        "--sample_batch_size=64",
+        "--sample_batch_size=8",
         f"--max_train_steps={args.max_steps}",
-        f"--checkpointing_period={args.checkpointing_period}",
         f"--sample_period={args.sample_period}",
-        f"--checkpoints_total_limit={args.checkpoints_total_limit}",
         "--lr_scheduler=constant",
         f"--learning_rate={args.learning_rate}",
         "--mixed_precision=bf16",
@@ -86,6 +85,12 @@ def main():
         "--adam_beta1=0.9",
         "--adam_beta2=0.999",
         "--adam_epsilon=1e-8"
+    ])
+    
+    # 设置只在训练完成时保存模型
+    cmd.extend([
+        f"--checkpointing_period={args.max_steps}",  # 设置检查点周期为最大步数，只在最后保存
+        "--checkpoints_total_limit=1"  # 只保留1个检查点
     ])
     
     print(f"🔧 执行命令: {' '.join(cmd)}")

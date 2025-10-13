@@ -15,8 +15,8 @@ import json
 from datetime import datetime
 
 # 添加路径
-sys.path.append('../../LIBERO/libero')
-sys.path.append('../../LIBERO/libero/libero')
+sys.path.append('/home/ubuntu/LIBERO/libero')
+sys.path.append('/home/ubuntu/LIBERO/libero/libero')
 sys.path.append('.')
 
 import libero
@@ -370,7 +370,7 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
         print(f"🎥 视频录制已启用，输出目录: {video_output_dir}")
     
     # 设置LIBERO环境
-    libero.set_libero_default_path("../../LIBERO/libero/libero")
+    libero.set_libero_default_path("/home/ubuntu/LIBERO/libero/libero")
     
     # 获取基准
     benchmark_dict = benchmark.get_benchmark_dict()
