@@ -16,6 +16,7 @@ from datetime import datetime
 
 # 添加路径
 sys.path.append('/home/zhukefei/LIBERO/libero')
+sys.path.append('/home/zhukefei/LIBERO/libero/libero')
 sys.path.append('.')
 
 import libero
