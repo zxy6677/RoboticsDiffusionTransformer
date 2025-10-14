@@ -19,9 +19,37 @@ sys.path.insert(0, '/home/zhukefei/LIBERO/libero')
 sys.path.insert(0, '/home/zhukefei/LIBERO/libero/libero')
 sys.path.insert(0, '.')
 
-import libero
-from libero import benchmark
-from libero.envs import OffScreenRenderEnv
+# 直接导入LIBERO模块，避免路径问题
+try:
+    import libero
+    from libero import benchmark
+    from libero.envs import OffScreenRenderEnv
+except ImportError as e:
+    print(f"❌ LIBERO导入失败: {e}")
+    print("🔧 尝试替代导入方法...")
+    
+    # 替代导入方法
+    import importlib.util
+    
+    # 直接导入libero模块
+    libero_spec = importlib.util.spec_from_file_location("libero", "/home/zhukefei/LIBERO/libero/libero/__init__.py")
+    libero_module = importlib.util.module_from_spec(libero_spec)
+    libero_spec.loader.exec_module(libero_module)
+    libero = libero_module
+    
+    # 导入benchmark
+    benchmark_spec = importlib.util.spec_from_file_location("benchmark", "/home/zhukefei/LIBERO/libero/libero/benchmark/__init__.py")
+    benchmark_module = importlib.util.module_from_spec(benchmark_spec)
+    benchmark_spec.loader.exec_module(benchmark_module)
+    benchmark = benchmark_module
+    
+    # 导入OffScreenRenderEnv
+    envs_spec = importlib.util.spec_from_file_location("envs", "/home/zhukefei/LIBERO/libero/libero/envs/__init__.py")
+    envs_module = importlib.util.module_from_spec(envs_spec)
+    envs_spec.loader.exec_module(envs_module)
+    OffScreenRenderEnv = envs_module.OffScreenRenderEnv
+    
+    print("✅ 使用替代方法成功导入LIBERO模块")
 
 from models.rdt_runner import RDTRunner
 from models.multimodal_encoder.t5_encoder import T5Embedder
