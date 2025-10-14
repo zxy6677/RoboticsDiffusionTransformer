@@ -15,9 +15,9 @@ import json
 from datetime import datetime
 
 # 添加路径
-sys.path.append('/home/zhukefei/LIBERO/libero')
-sys.path.append('/home/zhukefei/LIBERO/libero/libero')
-sys.path.append('.')
+sys.path.insert(0, '/home/zhukefei/LIBERO/libero')
+sys.path.insert(0, '/home/zhukefei/LIBERO/libero/libero')
+sys.path.insert(0, '.')
 
 import libero
 from libero import benchmark
