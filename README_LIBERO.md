@@ -85,7 +85,7 @@ python libero_evaluate.py \
     --vision_encoder google/siglip-so400m-patch14-384 \
     --benchmark libero_90 \
     --num_tasks 1 \
-    --max_steps 100 \
+    --max_steps 300 \
     --record_video \
     --video_output_dir videos
 ```
