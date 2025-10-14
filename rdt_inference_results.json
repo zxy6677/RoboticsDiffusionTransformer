@@ -1,0 +1,67 @@
+{
+  "total_tests": 5,
+  "successful_inferences": 5,
+  "inference_results": [
+    {
+      "test_idx": 0,
+      "success": true,
+      "pos_x": -0.171875,
+      "pos_y": -0.33203125,
+      "pos_z": 0.27734375,
+      "gripper": 0.9609375,
+      "output_range": [
+        -0.33203125,
+        0.984375
+      ]
+    },
+    {
+      "test_idx": 1,
+      "success": true,
+      "pos_x": 0.01123046875,
+      "pos_y": -0.4375,
+      "pos_z": 0.181640625,
+      "gripper": 0.953125,
+      "output_range": [
+        -0.4375,
+        0.96875
+      ]
+    },
+    {
+      "test_idx": 2,
+      "success": true,
+      "pos_x": -0.0576171875,
+      "pos_y": -0.37109375,
+      "pos_z": 0.23828125,
+      "gripper": 0.90625,
+      "output_range": [
+        -0.37109375,
+        0.97265625
+      ]
+    },
+    {
+      "test_idx": 3,
+      "success": true,
+      "pos_x": -0.0419921875,
+      "pos_y": -0.056884765625,
+      "pos_z": 0.2119140625,
+      "gripper": 0.02783203125,
+      "output_range": [
+        -0.0869140625,
+        0.96484375
+      ]
+    },
+    {
+      "test_idx": 4,
+      "success": true,
+      "pos_x": 0.0927734375,
+      "pos_y": -0.1123046875,
+      "pos_z": 0.65625,
+      "gripper": 0.9296875,
+      "output_range": [
+        -0.1123046875,
+        0.98046875
+      ]
+    }
+  ],
+  "success_rate": 1.0
+}
