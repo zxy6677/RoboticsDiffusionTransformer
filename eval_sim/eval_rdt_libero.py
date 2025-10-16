@@ -16,21 +16,27 @@ import cv2
 from datetime import datetime
 
 # 添加路径
-sys.path.append('../../LIBERO/libero')
-sys.path.append('../../LIBERO/libero/libero')
-sys.path.append('..')
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.dirname(script_dir))
+libero_path1 = os.path.abspath(os.path.join(project_root, '..', 'LIBERO', 'libero'))
+libero_path2 = os.path.abspath(os.path.join(project_root, '..', 'LIBERO', 'libero', 'libero'))
+
+# 将所有路径添加到sys.path（确保使用绝对路径）
+for path in [libero_path1, libero_path2, project_root]:
+    if path not in sys.path:
+        sys.path.insert(0, path)
 
 # 导入LIBERO模块
 import libero
-import benchmark
+from libero import benchmark
 from libero.envs import OffScreenRenderEnv
 
 # 导入RDT模块
 import importlib.util
-import sys
 
 # 动态导入configs.state_vec
-spec = importlib.util.spec_from_file_location("state_vec", "../configs/state_vec.py")
+state_vec_path = os.path.join(project_root, "configs", "state_vec.py")
+spec = importlib.util.spec_from_file_location("state_vec", state_vec_path)
 state_vec_module = importlib.util.module_from_spec(spec)
 sys.modules["state_vec"] = state_vec_module
 spec.loader.exec_module(state_vec_module)
@@ -39,6 +45,7 @@ STATE_VEC_IDX_MAPPING = state_vec_module.STATE_VEC_IDX_MAPPING
 from models.multimodal_encoder.siglip_encoder import SiglipVisionTower
 from models.multimodal_encoder.t5_encoder import T5Embedder
 from models.rdt_runner import RDTRunner
+from utils.rotation_utils import convert_quaternion_to_6d_rotation, convert_6d_rotation_to_euler
 
 class VideoRecorder:
     """视频录制器"""
@@ -270,11 +277,6 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     gripper_state = np.mean(gripper_pos)
     
     # 使用修复后的四元数到6D旋转转换函数
-    import sys
-    import os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from utils.rotation_utils import convert_quaternion_to_6d_rotation
-    
     eef_ori_6d = convert_quaternion_to_6d_rotation(eef_quat)
     
     # 构建17维LIBERO状态向量
@@ -312,7 +314,8 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     
     # 加载数据集统计信息进行归一化
     import json
-    with open('configs/dataset_stat.json', 'r') as f:
+    dataset_stat_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'configs', 'dataset_stat.json')
+    with open(dataset_stat_path, 'r') as f:
         stats = json.load(f)
     libero_stats = stats['libero_90']
     
@@ -328,31 +331,49 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     
     return torch.from_numpy(rdt_state).float()
 
+# 在模块级别加载统计信息和导入utils（避免重复）
+import json
+_LIBERO_STATS = None
+
+def _get_libero_stats():
+    """获取LIBERO数据集统计信息（缓存）"""
+    global _LIBERO_STATS
+    if _LIBERO_STATS is None:
+        dataset_stat_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'configs', 'dataset_stat.json')
+        with open(dataset_stat_path, 'r') as f:
+            stats = json.load(f)
+        _LIBERO_STATS = stats['libero_90']
+    return _LIBERO_STATS
+
 def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
-    """将RDT动作转换为LIBERO动作格式"""
+    """
+    将RDT动作（物理单位）转换为LIBERO动作格式（归一化）
+    
+    重要：修复后的RDT训练使用物理单位（符合README IMPORTANT 3）
+    - 位置：米（物理单位）→ 需要转换为LIBERO的[-1, 1]范围
+    - 旋转：6D表示（从弧度转换）→ 需要转换为LIBERO的[-1, 1]范围
+    - gripper：[0, 1] 范围 → 转换为LIBERO的[-1, 1]范围
+    """
     # RDT输出128维动作，需要从正确的索引提取LIBERO动作
-    action_128d = rdt_action[0, 0, :].cpu().numpy()  # (128,) - 先移到CPU再转numpy
+    action_128d = rdt_action[0, 0, :].cpu().numpy()  # (128,)
     
-    # 加载数据集统计信息进行反归一化
-    import json
-    with open('configs/dataset_stat.json', 'r') as f:
-        stats = json.load(f)
-    libero_stats = stats['libero_90']
-    
-    # 根据训练时的映射，从RDT的128维输出中提取LIBERO的7D动作
-    # LIBERO动作: [pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, gripper]
-    # 注意：LIBERO使用增量控制，动作范围是[-1, 1]，输出范围是位置[-0.05, 0.05]，旋转[-0.5, 0.5]
-    
-    # 提取位置 (3D) - 需要反归一化
+    # === 步骤1: 提取位置（物理单位：米） ===
     pos_x_idx = STATE_VEC_IDX_MAPPING["right_eef_pos_x"]  # 索引30
     pos_y_idx = STATE_VEC_IDX_MAPPING["right_eef_pos_y"]  # 索引31
     pos_z_idx = STATE_VEC_IDX_MAPPING["right_eef_pos_z"]  # 索引32
     
-    pos_x = action_128d[pos_x_idx] * libero_stats["state_std"][pos_x_idx] + libero_stats["state_mean"][pos_x_idx]
-    pos_y = action_128d[pos_y_idx] * libero_stats["state_std"][pos_y_idx] + libero_stats["state_mean"][pos_y_idx]
-    pos_z = action_128d[pos_z_idx] * libero_stats["state_std"][pos_z_idx] + libero_stats["state_mean"][pos_z_idx]
+    # RDT输出的是物理单位（米）
+    pos_x_meters = action_128d[pos_x_idx]
+    pos_y_meters = action_128d[pos_y_idx]
+    pos_z_meters = action_128d[pos_z_idx]
     
-    # 提取完整的6D旋转表示 - 需要反归一化
+    # 转换为LIBERO的归一化范围: 米 → [-1, 1]
+    # [-0.05, 0.05]米 对应 [-1, 1]
+    pos_x_norm = pos_x_meters / 0.05
+    pos_y_norm = pos_y_meters / 0.05
+    pos_z_norm = pos_z_meters / 0.05
+    
+    # === 步骤2: 提取6D旋转并转换为欧拉角（弧度） ===
     ori_indices = [
         STATE_VEC_IDX_MAPPING["right_eef_angle_0"],  # 索引33
         STATE_VEC_IDX_MAPPING["right_eef_angle_1"],  # 索引34
@@ -362,42 +383,36 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
         STATE_VEC_IDX_MAPPING["right_eef_angle_5"]   # 索引38
     ]
     
-    ori_6d = np.array([
-        action_128d[idx] * libero_stats["state_std"][idx] + libero_stats["state_mean"][idx]
-        for idx in ori_indices
+    ori_6d = np.array([action_128d[idx] for idx in ori_indices])
+    
+    # 6D旋转转欧拉角（弧度）
+    ori_euler_rad = convert_6d_rotation_to_euler(ori_6d)  # 物理单位：弧度
+    
+    # === 步骤3: 转换为LIBERO的归一化范围: 弧度 → [-1, 1] ===
+    # [-0.5, 0.5]弧度 对应 [-1, 1]
+    ori_x_norm = ori_euler_rad[0] / 0.5
+    ori_y_norm = ori_euler_rad[1] / 0.5
+    ori_z_norm = ori_euler_rad[2] / 0.5
+    
+    # === 步骤4: 提取Gripper ===
+    gripper_idx = STATE_VEC_IDX_MAPPING["right_gripper_open"]  # 索引10
+    gripper_01 = action_128d[gripper_idx]  # [0, 1]范围
+    
+    # 将gripper从[0, 1]映射到LIBERO的[-1, 1]范围
+    gripper_norm = gripper_01 * 2.0 - 1.0
+    
+    # === 步骤5: 构建LIBERO动作向量 ===
+    # [pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, gripper]
+    # 所有值都应该在[-1, 1]范围内
+    libero_action = np.array([
+        pos_x_norm, pos_y_norm, pos_z_norm,
+        ori_x_norm, ori_y_norm, ori_z_norm,
+        gripper_norm
     ])
     
-    # 使用修复后的6D旋转转换函数
-    import sys
-    import os
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    from utils.rotation_utils import convert_6d_rotation_to_euler
-    
-    ori_3d = convert_6d_rotation_to_euler(ori_6d)
-    
-    # 提取gripper状态 - 需要反归一化
-    gripper_idx = STATE_VEC_IDX_MAPPING["right_gripper_open"]  # 索引10
-    gripper_normalized = action_128d[gripper_idx] * libero_stats["state_std"][gripper_idx] + libero_stats["state_mean"][gripper_idx]
-    
-    # 将gripper从[0,1]映射回[-1,1]
-    gripper = gripper_normalized * 2.0 - 1.0
-    
-    # 构建LIBERO动作向量 - 注意：LIBERO期望的是[-1, 1]范围内的增量控制
-    # 位置增量范围：[-0.05, 0.05] 对应 [-1, 1]
-    # 旋转增量范围：[-0.5, 0.5] 对应 [-1, 1]
-    libero_action = np.array([pos_x, pos_y, pos_z, ori_3d[0], ori_3d[1], ori_3d[2], gripper])
-    
-    # 将动作缩放到LIBERO期望的[-1, 1]范围
-    # 位置：从米单位缩放到[-1, 1]（对应[-0.05, 0.05]米）
-    # 尝试反转某些轴的方向来修正运动方向
-    libero_action[0] = np.clip(-libero_action[0] / 0.05, -1.0, 1.0)  # 反转X轴
-    libero_action[1] = np.clip(libero_action[1] / 0.05, -1.0, 1.0)   # Y轴保持不变
-    libero_action[2] = np.clip(-libero_action[2] / 0.05, -1.0, 1.0)  # 反转Z轴
-    
-    # 旋转：从弧度单位缩放到[-1, 1]（对应[-0.5, 0.5]弧度）
-    libero_action[3:6] = np.clip(libero_action[3:6] / 0.5, -1.0, 1.0)
-    
-    # gripper已经在[-1, 1]范围内，保持不变
+    # Clip到[-1, 1]范围以确保安全
+    # 轻微的数值误差可能导致超出范围
+    libero_action = np.clip(libero_action, -1.0, 1.0)
     
     return libero_action
 
@@ -417,7 +432,8 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
         print(f"🎥 视频录制已启用，输出目录: {video_output_dir}")
     
     # 设置LIBERO环境
-    libero.set_libero_default_path("../../LIBERO/libero/libero")
+    libero_path = "/home/ubuntu/LIBERO/libero/libero"
+    libero.set_libero_default_path(libero_path)
     
     # 获取基准
     benchmark_dict = benchmark.get_benchmark_dict()

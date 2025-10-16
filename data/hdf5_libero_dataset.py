@@ -185,22 +185,44 @@ class HDF5LIBERODataset:
                 return uni_vec
             
             def fill_in_action(values):
-                # LIBERO actions are 7D: [pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, gripper]
-                # Map to RDT unified action space
-                # Convert 3D orientation to 6D rotation representation
-                ori_3d = values[:, 3:6]  # (T, 3) - 3D orientation
-                ori_6d = convert_euler_to_6d_rotation(ori_3d)  # (T, 6) - 6D rotation
+                """
+                将LIBERO actions转换为RDT统一动作空间
                 
-                # Normalize gripper values to [0,1] range (min-max normalization)
-                # LIBERO gripper values are typically in [-1, 1], we need to map to [0, 1]
+                重要：按照RDT README IMPORTANT 3的要求，必须使用物理单位！
+                "No physical quantities (except the gripper width) are normalized during pre-training.
+                 Generally, we use the International System of Units."
+                
+                LIBERO原始actions: 7D [pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, gripper]
+                范围: [-1, 1] 归一化范围，需要转换为物理单位
+                """
+                
+                # === 步骤1: 转换位置为物理单位（米） ===
+                # LIBERO: [-1, 1] 对应 [-0.05m, 0.05m] 的物理增量
+                # 转换为物理单位以符合RDT预训练的数据分布
+                pos_normalized = values[:, 0:3]  # (T, 3) 归一化范围
+                pos_meters = pos_normalized * 0.05  # 转换为米 (物理单位)
+                # 现在范围: 约 [-0.05, 0.05] 米，符合国际单位制
+                
+                # === 步骤2: 转换旋转为物理单位（弧度） ===
+                # LIBERO: [-1, 1] 对应 [-0.5rad, 0.5rad] 的物理增量
+                ori_normalized = values[:, 3:6]  # (T, 3) 欧拉角，归一化范围
+                ori_radians = ori_normalized * 0.5  # 转换为弧度 (物理单位)
+                # 现在范围: 约 [-0.5, 0.5] 弧度
+                
+                # === 步骤3: 转换为6D旋转表示 ===
+                # 注意：从物理单位的弧度转换为6D表示
+                ori_6d = convert_euler_to_6d_rotation(ori_radians)  # (T, 6)
+                
+                # === 步骤4: Gripper归一化（按README，这是唯一需要归一化的） ===
+                # LIBERO gripper: [-1, 1] → RDT gripper: [0, 1]
                 gripper_raw = values[:, 6:7]  # (T, 1)
                 gripper_normalized = (gripper_raw + 1.0) / 2.0  # Map [-1,1] to [0,1]
                 
-                # Create 10D action vector: [pos(3) + ori_6d(6) + gripper(1)]
+                # === 步骤5: 组合为10D动作向量 ===
                 action_10d = np.concatenate([
-                    values[:, 0:3],  # position (3D)
-                    ori_6d,          # orientation (6D)
-                    gripper_normalized  # gripper (1D) - normalized to [0,1]
+                    pos_meters,           # 位置：物理单位（米）
+                    ori_6d,              # 旋转：6D表示（从物理单位的弧度转换）
+                    gripper_normalized   # Gripper：归一化到[0, 1]
                 ], axis=1)  # (T, 10)
 
                 UNI_ACTION_INDICES = [
