@@ -1,6 +1,7 @@
 import os
 import fnmatch
 import json
+import sys
 
 import h5py
 import yaml
@@ -9,29 +10,9 @@ from scipy.spatial.transform import Rotation as R
 
 from configs.state_vec import STATE_VEC_IDX_MAPPING
 
-
-def convert_euler_to_6d_rotation(euler_angles):
-    """
-    Convert Euler angles to 6D rotation representation.
-    
-    Args:
-        euler_angles: (N, 3) array of Euler angles (roll, pitch, yaw)
-    
-    Returns:
-        6d_rotation: (N, 6) array of 6D rotation representation
-    """
-    # Convert Euler angles to rotation matrix
-    rotation_matrices = R.from_euler('xyz', euler_angles).as_matrix()
-    
-    # Extract first two columns for 6D representation
-    # 6D representation uses the first two columns of the rotation matrix
-    x_axis = rotation_matrices[:, :, 0]  # First column
-    y_axis = rotation_matrices[:, :, 1]  # Second column
-    
-    # Concatenate to get 6D representation
-    rotation_6d = np.concatenate([x_axis, y_axis], axis=1)
-    
-    return rotation_6d
+# 添加utils路径
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from utils.rotation_utils import convert_euler_to_6d_rotation, convert_6d_rotation_to_euler
 
 
 class HDF5LIBERODataset:

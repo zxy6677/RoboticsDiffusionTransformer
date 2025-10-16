@@ -269,17 +269,13 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     # 计算gripper状态
     gripper_state = np.mean(gripper_pos)
     
-    # 将四元数转换为6D旋转表示
-    def quat_to_6d_rotation(quat):
-        """将四元数转换为6D旋转表示"""
-        # 使用scipy进行精确的四元数到旋转矩阵转换
-        from scipy.spatial.transform import Rotation
-        r = Rotation.from_quat(quat)
-        rot_matrix = r.as_matrix()
-        # 取前两列作为6D表示
-        return rot_matrix[:, :2].flatten()  # (6,)
+    # 使用修复后的四元数到6D旋转转换函数
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    from utils.rotation_utils import convert_quaternion_to_6d_rotation
     
-    eef_ori_6d = quat_to_6d_rotation(eef_quat)
+    eef_ori_6d = convert_quaternion_to_6d_rotation(eef_quat)
     
     # 构建17维LIBERO状态向量
     libero_state = np.concatenate([
@@ -371,31 +367,13 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
         for idx in ori_indices
     ])
     
-    # 将6D旋转表示转换为3D欧拉角
-    def rotation_6d_to_euler(rot_6d):
-        """将6D旋转表示转换为3D欧拉角"""
-        # 重构旋转矩阵
-        r1 = rot_6d[:3]  # 第一列
-        r2 = rot_6d[3:]  # 第二列
-        
-        # 归一化
-        r1 = r1 / (np.linalg.norm(r1) + 1e-8)
-        r2 = r2 / (np.linalg.norm(r2) + 1e-8)
-        
-        # 计算第三列
-        r3 = np.cross(r1, r2)
-        r3 = r3 / (np.linalg.norm(r3) + 1e-8)
-        
-        # 重构旋转矩阵
-        rot_matrix = np.column_stack([r1, r2, r3])
-        
-        # 转换为欧拉角
-        from scipy.spatial.transform import Rotation
-        r = Rotation.from_matrix(rot_matrix)
-        euler = r.as_euler('xyz', degrees=False)
-        return euler
+    # 使用修复后的6D旋转转换函数
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    from utils.rotation_utils import convert_6d_rotation_to_euler
     
-    ori_3d = rotation_6d_to_euler(ori_6d)
+    ori_3d = convert_6d_rotation_to_euler(ori_6d)
     
     # 提取gripper状态 - 需要反归一化
     gripper_idx = STATE_VEC_IDX_MAPPING["right_gripper_open"]  # 索引10

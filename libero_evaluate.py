@@ -15,8 +15,8 @@ import json
 from datetime import datetime
 
 # 添加路径
-sys.path.append('/home/zhukefei/LIBERO/libero')
-sys.path.append('/home/zhukefei/LIBERO/libero/libero')
+sys.path.append('/home/ubuntu/LIBERO/libero')
+sys.path.append('/home/ubuntu/LIBERO/libero/libero')
 sys.path.append('.')
 
 import libero
@@ -232,14 +232,13 @@ def convert_libero_state_to_rdt(obs: dict, state_dim: int = 128) -> torch.Tensor
     # 计算gripper状态
     gripper_state = np.mean(gripper_pos)
     
-    # 将四元数转换为6D旋转表示
-    def quat_to_6d_rotation(quat):
-        from scipy.spatial.transform import Rotation
-        r = Rotation.from_quat(quat)
-        rot_matrix = r.as_matrix()
-        return rot_matrix[:, :2].flatten()
+    # 使用修复后的四元数到6D旋转转换函数
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
+    from utils.rotation_utils import convert_quaternion_to_6d_rotation
     
-    eef_ori_6d = quat_to_6d_rotation(eef_quat)
+    eef_ori_6d = convert_quaternion_to_6d_rotation(eef_quat)
     
     # 构建17维LIBERO状态向量
     libero_state = np.concatenate([
@@ -318,25 +317,13 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
         for idx in ori_indices
     ])
     
-    # 将6D旋转转换为3D欧拉角
-    def rotation_6d_to_euler(rot_6d):
-        r1 = rot_6d[:3]
-        r2 = rot_6d[3:]
-        
-        r1 = r1 / (np.linalg.norm(r1) + 1e-8)
-        r2 = r2 / (np.linalg.norm(r2) + 1e-8)
-        
-        r3 = np.cross(r1, r2)
-        r3 = r3 / (np.linalg.norm(r3) + 1e-8)
-        
-        rot_matrix = np.column_stack([r1, r2, r3])
-        
-        from scipy.spatial.transform import Rotation
-        r = Rotation.from_matrix(rot_matrix)
-        euler = r.as_euler('xyz', degrees=False)
-        return euler
+    # 使用修复后的6D旋转转换函数
+    import sys
+    import os
+    sys.path.append(os.path.join(os.path.dirname(__file__), '.'))
+    from utils.rotation_utils import convert_6d_rotation_to_euler
     
-    ori_3d = rotation_6d_to_euler(ori_6d)
+    ori_3d = convert_6d_rotation_to_euler(ori_6d)
     
     # 提取gripper状态
     gripper_idx = STATE_VEC_IDX_MAPPING["right_gripper_open"]
@@ -347,22 +334,55 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
     libero_action = np.array([pos_x, pos_y, pos_z, ori_3d[0], ori_3d[1], ori_3d[2], gripper])
     
     # 将动作缩放到LIBERO期望的[-1, 1]范围
-    libero_action[0] = np.clip(-libero_action[0] / 0.05, -1.0, 1.0)
-    libero_action[1] = np.clip(libero_action[1] / 0.05, -1.0, 1.0)
-    libero_action[2] = np.clip(-libero_action[2] / 0.05, -1.0, 1.0)
-    libero_action[3:6] = np.clip(libero_action[3:6] / 0.5, -1.0, 1.0)
+    # 修复：调整缩放参数以避免过度放大
+    # 位置缩放：从0.05改为0.5，减少20倍放大
+    libero_action[0] = np.clip(-libero_action[0] / 0.5, -1.0, 1.0)
+    libero_action[1] = np.clip(libero_action[1] / 0.5, -1.0, 1.0)
+    libero_action[2] = np.clip(-libero_action[2] / 0.5, -1.0, 1.0)
+    # 旋转缩放：从0.5改为2.0，减少4倍放大
+    libero_action[3:6] = np.clip(libero_action[3:6] / 2.0, -1.0, 1.0)
     
     return libero_action
 
+def debug_benchmark_info(benchmark_name: str = "libero_90", num_tasks: int = 10):
+    """调试函数：打印benchmark信息"""
+    print(f"🔍 调试benchmark信息...")
+    
+    try:
+        # 获取基准
+        benchmark_dict = benchmark.get_benchmark_dict()
+        print(f"📋 可用的benchmark: {list(benchmark_dict.keys())}")
+        
+        libero_benchmark = benchmark_dict[benchmark_name]()
+        task_names = libero_benchmark.get_task_names()
+        
+        print(f"📊 {benchmark_name} 包含 {len(task_names)} 个任务")
+        print(f"📋 前{min(num_tasks, len(task_names))}个任务:")
+        
+        for i in range(min(num_tasks, len(task_names))):
+            task = libero_benchmark.get_task(i)
+            print(f"  Task {i}: {task.name}")
+            print(f"    - 问题文件夹: {task.problem_folder}")
+            print(f"    - BDDL文件: {task.bddl_file}")
+            
+            # 检查初始状态
+            init_states = libero_benchmark.get_task_init_states(i)
+            print(f"    - 初始状态数量: {len(init_states)}")
+            
+    except Exception as e:
+        print(f"❌ 调试失败: {e}")
+        import traceback
+        traceback.print_exc()
+
 def evaluate_rdt_on_libero(model: RDTLIBEROModel, 
                           benchmark_name: str = "libero_90",
-                          num_tasks: int = 1,
+                          num_tasks: int = 10,  # 默认评估前10个任务
                           max_steps: int = 100,
                           record_video: bool = False,
                           video_output_dir: str = "videos") -> dict:
-    """在LIBERO基准上评估RDT模型"""
+    """在LIBERO基准上评估RDT模型 - 顺序评估前10个任务 (task0~task9)"""
     
-    print(f"🚀 开始RDT在{benchmark_name}上的评估")
+    print(f"🚀 开始RDT在{benchmark_name}上的顺序评估 (前{num_tasks}个任务)")
     
     # 创建视频输出目录
     if record_video:
@@ -372,19 +392,31 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
     # 设置LIBERO环境
     libero.set_libero_default_path("/home/ubuntu/LIBERO/libero/libero")
     
-    # 获取基准
+    # 调试：打印benchmark信息
+    debug_benchmark_info(benchmark_name, num_tasks)
+    
+    # 获取基准 - 修复：正确获取benchmark
     benchmark_dict = benchmark.get_benchmark_dict()
     libero_benchmark = benchmark_dict[benchmark_name]()
     
+    # 确保只评估前10个任务
+    total_available_tasks = len(libero_benchmark.get_task_names())
+    num_tasks_to_evaluate = min(num_tasks, total_available_tasks)
+    
     results = {
-        "total_tasks": min(num_tasks, len(libero_benchmark.get_task_names())),
+        "total_tasks": num_tasks_to_evaluate,
         "successful_tasks": 0,
         "total_steps": 0,
-        "task_results": []
+        "task_results": [],
+        "evaluation_time": datetime.now().isoformat(),
+        "benchmark_name": benchmark_name
     }
     
-    # 评估指定数量的任务
-    for task_idx in range(results["total_tasks"]):
+    print(f"📊 将评估 {num_tasks_to_evaluate} 个任务 (task0~task{num_tasks_to_evaluate-1})")
+    print(f"📋 可用任务列表: {libero_benchmark.get_task_names()[:num_tasks_to_evaluate]}")
+    
+    # 顺序评估前10个任务
+    for task_idx in range(num_tasks_to_evaluate):
         task_name = libero_benchmark.get_task_names()[task_idx]
         print(f"\n📋 评估任务 {task_idx+1}/{results['total_tasks']}: {task_name}")
         
@@ -392,18 +424,23 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
         video_recorder = None
         if record_video:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            video_filename = f"task_{task_idx+1:02d}_{task_name[:30]}_{timestamp}.mp4"
+            video_filename = f"task_{task_idx:02d}_{task_name.replace(' ', '_').replace('/', '_')}_{timestamp}.mp4"
             video_path = os.path.join(video_output_dir, video_filename)
             video_recorder = VideoRecorder(video_path, fps=10, width=128, height=128)
             print(f"  🎥 开始录制视频: {video_filename}")
         
         try:
-            # 获取任务
+            # 获取任务 - 修复：确保获取正确的任务
             task = libero_benchmark.get_task(task_idx)
+            print(f"  🎯 任务ID: {task_idx}, 任务名称: {task.name}")
+            print(f"  📁 问题文件夹: {task.problem_folder}")
+            print(f"  📄 BDDL文件: {task.bddl_file}")
             
-            # 创建环境
+            # 创建环境 - 修复：为每个任务创建独立的环境
             bddl_files_path = libero.get_libero_path("bddl_files")
             bddl_file_path = os.path.join(bddl_files_path, task.problem_folder, task.bddl_file)
+            
+            print(f"  📂 BDDL文件路径: {bddl_file_path}")
             
             env_args = {
                 "bddl_file_name": bddl_file_path,
@@ -416,14 +453,16 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
             # 重置环境
             obs = env.reset()
             
-            # 设置初始状态
+            # 设置初始状态 - 修复：为每个任务设置正确的初始状态
             init_states = libero_benchmark.get_task_init_states(task_idx)
             if len(init_states) > 0:
                 env.set_init_state(init_states[0])
+                print(f"  🏁 设置初始状态: {len(init_states)} 个状态")
             
-            # 编码任务描述
-            text_embed = model.encode_instruction(task_name)
-            print(f"  📝 任务描述: {task_name}")
+            # 编码任务描述 - 修复：使用正确的任务描述
+            task_description = task.name  # 使用任务的实际名称
+            text_embed = model.encode_instruction(task_description)
+            print(f"  📝 任务描述: {task_description}")
             
             # 重置模型
             model.reset()
@@ -463,12 +502,22 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
                 task_steps += 1
                 
                 print(f"      📊 奖励: {reward:.3f}, 完成: {done}")
+                print(f"      📋 信息: {info}")
+                
+                # 检查成功条件 - 修复：更准确的成功判断
                 if 'success' in info:
-                    print(f"      🎯 成功状态: {info['success']}")
+                    task_success = info['success']
+                    print(f"      🎯 成功状态: {task_success}")
+                elif 'is_success' in info:
+                    task_success = info['is_success']
+                    print(f"      🎯 成功状态: {task_success}")
+                else:
+                    # 如果没有明确的成功标志，使用奖励判断
+                    task_success = reward > 0.5  # 根据任务调整阈值
+                    print(f"      🎯 基于奖励判断成功: {task_success} (奖励: {reward})")
                 
                 if done:
-                    task_success = info.get("success", False)
-                    print(f"      🏁 Episode结束: 成功={task_success}")
+                    print(f"      🏁 Episode结束: 成功={task_success}, 奖励={reward:.3f}")
                     break
             
             # 记录结果
@@ -517,15 +566,15 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
     return results
 
 def main():
-    parser = argparse.ArgumentParser(description="RDT在LIBERO上的评估")
+    parser = argparse.ArgumentParser(description="RDT在LIBERO上的评估 - 顺序评估前10个任务")
     parser.add_argument("--config", type=str, default="configs/base.yaml", help="RDT配置文件路径")
     parser.add_argument("--pretrained", type=str, default="checkpoints/rdt-1b", help="预训练模型路径")
     parser.add_argument("--text_encoder", type=str, default="google/t5-v1_1-xxl", help="文本编码器路径")
     parser.add_argument("--vision_encoder", type=str, default="google/siglip-so400m-patch14-384", help="视觉编码器路径")
     parser.add_argument("--benchmark", type=str, default="libero_90", help="LIBERO基准名称")
-    parser.add_argument("--num_tasks", type=int, default=1, help="评估任务数量")
+    parser.add_argument("--num_tasks", type=int, default=10, help="评估任务数量 (默认: 10个任务)")
     parser.add_argument("--max_steps", type=int, default=100, help="每个任务最大步数")
-    parser.add_argument("--record_video", action="store_true", help="是否录制视频")
+    parser.add_argument("--record_video", action="store_true", default=True, help="是否录制视频 (默认: 启用)")
     parser.add_argument("--video_output_dir", type=str, default="videos", help="视频输出目录")
     
     args = parser.parse_args()
@@ -540,6 +589,10 @@ def main():
     )
     
     # 运行评估
+    print(f"🎯 开始顺序评估前 {args.num_tasks} 个任务 (task0~task{args.num_tasks-1})")
+    if args.record_video:
+        print(f"📹 视频录制已启用，将保存到: {args.video_output_dir}")
+    
     results = evaluate_rdt_on_libero(
         model=model,
         benchmark_name=args.benchmark,
