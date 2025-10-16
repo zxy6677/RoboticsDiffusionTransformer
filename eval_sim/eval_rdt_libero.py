@@ -368,10 +368,10 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
     pos_z_meters = action_128d[pos_z_idx]
     
     # 转换为LIBERO的归一化范围: 米 → [-1, 1]
-    # [-0.05, 0.05]米 对应 [-1, 1]
-    pos_x_norm = pos_x_meters / 0.05
-    pos_y_norm = pos_y_meters / 0.05
-    pos_z_norm = pos_z_meters / 0.05
+    # 修正：使用实际测量的缩放因子 0.012 而不是 0.05
+    pos_x_norm = pos_x_meters / 0.012
+    pos_y_norm = pos_y_meters / 0.012
+    pos_z_norm = pos_z_meters / 0.012
     
     # === 步骤2: 提取6D旋转并转换为欧拉角（弧度） ===
     ori_indices = [
