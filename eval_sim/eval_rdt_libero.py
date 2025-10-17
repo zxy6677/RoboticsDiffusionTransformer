@@ -312,9 +312,23 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     min_len = min(len(libero_state), len(right_arm_indices))
     rdt_state[right_arm_indices[:min_len]] = libero_state[:min_len]
     
-    # 重要：按照RDT设计，State使用物理单位，不归一化
-    # 归一化会导致不同任务的State分布不匹配，产生异常值
-    # 直接返回物理单位的State
+    # 加载数据集统计信息进行归一化
+    import json
+    dataset_stat_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'configs', 'dataset_stat.json')
+    with open(dataset_stat_path, 'r') as f:
+        stats = json.load(f)
+    libero_stats = stats['libero_90']
+    
+    # 对状态进行归一化
+    state_mean = np.array(libero_stats["state_mean"])
+    state_std = np.array(libero_stats["state_std"])
+    
+    # 避免除零
+    state_std = np.where(state_std == 0, 1.0, state_std)
+    
+    # 归一化
+    rdt_state = (rdt_state - state_mean) / state_std
+    
     return torch.from_numpy(rdt_state).float()
 
 # 在模块级别加载统计信息和导入utils（避免重复）
@@ -390,10 +404,14 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
     # === 步骤5: 构建LIBERO动作向量 ===
     # [pos_x, pos_y, pos_z, ori_x, ori_y, ori_z, gripper]
     # 所有值都应该在[-1, 1]范围内
+    
+    # 注意：坐标系转换已经在训练时完成（data/hdf5_libero_dataset.py）
+    # 训练时翻转了位置轴，所以评估时不需要再翻转
+    # 模型输出已经是RDT坐标系，需要转换回LIBERO坐标系（再翻转一次）
     libero_action = np.array([
-        pos_x_norm, pos_y_norm, pos_z_norm,
-        ori_x_norm, ori_y_norm, ori_z_norm,
-        gripper_norm
+        -pos_x_norm, -pos_y_norm, -pos_z_norm,  # 从RDT坐标系转换回LIBERO
+        ori_x_norm, ori_y_norm, ori_z_norm,      # 旋转保持不变
+        gripper_norm                              # Gripper保持不变
     ])
     
     # Clip到[-1, 1]范围以确保安全
