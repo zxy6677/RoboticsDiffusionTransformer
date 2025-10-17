@@ -367,6 +367,16 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
     pos_y_norm = pos_y_meters / 0.012
     pos_z_norm = pos_z_meters / 0.012
     
+    # DEBUG: 打印翻转后的值
+    import builtins
+    if not hasattr(builtins, '_debug_step_count'):
+        builtins._debug_step_count = 0
+    if builtins._debug_step_count < 10:
+        print(f"\n[DEBUG-FLIP Step {builtins._debug_step_count}]")
+        print(f"  RDT原始输出(米): X={pos_x_meters:+.6f}, Y={pos_y_meters:+.6f}, Z={pos_z_meters:+.6f}")
+        print(f"  翻转后LIBERO值: X={pos_x_norm:+.4f}, Y={pos_y_norm:+.4f}, Z={pos_z_norm:+.4f}")
+        builtins._debug_step_count += 1
+    
     # === 步骤2: 提取6D旋转并转换为欧拉角（弧度） ===
     ori_indices = [
         STATE_VEC_IDX_MAPPING["right_eef_angle_0"],  # 索引33
