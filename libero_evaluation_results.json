@@ -1,39 +1,15 @@
 {
-  "total_tasks": 5,
+  "total_tasks": 1,
   "successful_tasks": 0,
-  "total_steps": 1500,
+  "total_steps": 200,
   "task_results": [
     {
       "task_name": "KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet",
       "success": false,
-      "steps": 300,
-      "reward": 0.0
-    },
-    {
-      "task_name": "KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it",
-      "success": false,
-      "steps": 300,
-      "reward": 0.0
-    },
-    {
-      "task_name": "KITCHEN_SCENE10_put_the_black_bowl_in_the_top_drawer_of_the_cabinet",
-      "success": false,
-      "steps": 300,
-      "reward": 0.0
-    },
-    {
-      "task_name": "KITCHEN_SCENE10_put_the_butter_at_the_back_in_the_top_drawer_of_the_cabinet_and_close_it",
-      "success": false,
-      "steps": 300,
-      "reward": 0.0
-    },
-    {
-      "task_name": "KITCHEN_SCENE10_put_the_butter_at_the_front_in_the_top_drawer_of_the_cabinet_and_close_it",
-      "success": false,
-      "steps": 300,
+      "steps": 200,
       "reward": 0.0
     }
   ],
   "success_rate": 0.0,
-  "avg_steps": 300.0
+  "avg_steps": 200.0
 }
