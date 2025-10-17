@@ -359,19 +359,13 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
     
     # 转换为LIBERO的归一化范围: 米 → [-1, 1]
     # 使用实际测量的缩放因子 0.012
-    pos_x_norm = pos_x_meters / 0.012
+    # 
+    # ⚠️ 关键修复：LIBERO环境的action符号定义与训练数据相反！
+    # 训练数据中：正X → 向右，但LIBERO执行时：正X → 向左
+    # 因此需要翻转X轴符号来匹配LIBERO的实际行为
+    pos_x_norm = -pos_x_meters / 0.012  # 翻转X轴
     pos_y_norm = pos_y_meters / 0.012
     pos_z_norm = pos_z_meters / 0.012
-    
-    # DEBUG: 打印RDT输出和转换后的值（前10步）
-    import builtins
-    if not hasattr(builtins, '_debug_step_count'):
-        builtins._debug_step_count = 0
-    if builtins._debug_step_count < 10:
-        print(f"\n[DEBUG Step {builtins._debug_step_count}]")
-        print(f"  RDT输出(米): X={pos_x_meters:+.6f}, Y={pos_y_meters:+.6f}, Z={pos_z_meters:+.6f}")
-        print(f"  转换后(归一化): X={pos_x_norm:+.4f}, Y={pos_y_norm:+.4f}, Z={pos_z_norm:+.4f}")
-        builtins._debug_step_count += 1
     
     # === 步骤2: 提取6D旋转并转换为欧拉角（弧度） ===
     ori_indices = [
