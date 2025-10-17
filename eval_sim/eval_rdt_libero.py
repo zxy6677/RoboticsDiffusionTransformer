@@ -312,13 +312,9 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     min_len = min(len(libero_state), len(right_arm_indices))
     rdt_state[right_arm_indices[:min_len]] = libero_state[:min_len]
     
-    # ⚠️ 重要：训练时State没有归一化，所以评估时也不能归一化！
-    # 如果归一化，模型会接收到完全不同的输入，导致输出错误
-    # 
-    # 错误的做法（会导致action全是负值）：
-    # rdt_state = (rdt_state - state_mean) / state_std
-    #
-    # 正确的做法：直接使用原始State值
+    # 重要：按照RDT设计，State使用物理单位，不归一化
+    # 归一化会导致不同任务的State分布不匹配，产生异常值
+    # 直接返回物理单位的State
     return torch.from_numpy(rdt_state).float()
 
 # 在模块级别加载统计信息和导入utils（避免重复）
@@ -358,24 +354,10 @@ def convert_rdt_action_to_libero(rdt_action: torch.Tensor) -> np.ndarray:
     pos_z_meters = action_128d[pos_z_idx]
     
     # 转换为LIBERO的归一化范围: 米 → [-1, 1]
-    # 使用实际测量的缩放因子 0.012
-    # 
-    # ⚠️ 关键修复：LIBERO环境的action符号定义与训练数据相反！
-    # 训练数据中：正X → 向右，但LIBERO执行时：正X → 向左
-    # 因此需要翻转X轴符号来匹配LIBERO的实际行为
-    pos_x_norm = -pos_x_meters / 0.012  # 翻转X轴
+    # 修正：使用实际测量的缩放因子 0.012 而不是 0.05
+    pos_x_norm = pos_x_meters / 0.012
     pos_y_norm = pos_y_meters / 0.012
     pos_z_norm = pos_z_meters / 0.012
-    
-    # DEBUG: 打印翻转后的值
-    import builtins
-    if not hasattr(builtins, '_debug_step_count'):
-        builtins._debug_step_count = 0
-    if builtins._debug_step_count < 10:
-        print(f"\n[DEBUG-FLIP Step {builtins._debug_step_count}]")
-        print(f"  RDT原始输出(米): X={pos_x_meters:+.6f}, Y={pos_y_meters:+.6f}, Z={pos_z_meters:+.6f}")
-        print(f"  翻转后LIBERO值: X={pos_x_norm:+.4f}, Y={pos_y_norm:+.4f}, Z={pos_z_norm:+.4f}")
-        builtins._debug_step_count += 1
     
     # === 步骤2: 提取6D旋转并转换为欧拉角（弧度） ===
     ori_indices = [
