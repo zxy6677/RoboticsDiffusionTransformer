@@ -312,23 +312,13 @@ def convert_libero_state_to_rdt(obs: Dict, state_dim: int = 128) -> torch.Tensor
     min_len = min(len(libero_state), len(right_arm_indices))
     rdt_state[right_arm_indices[:min_len]] = libero_state[:min_len]
     
-    # 加载数据集统计信息进行归一化
-    import json
-    dataset_stat_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'configs', 'dataset_stat.json')
-    with open(dataset_stat_path, 'r') as f:
-        stats = json.load(f)
-    libero_stats = stats['libero_90']
-    
-    # 对状态进行归一化
-    state_mean = np.array(libero_stats["state_mean"])
-    state_std = np.array(libero_stats["state_std"])
-    
-    # 避免除零
-    state_std = np.where(state_std == 0, 1.0, state_std)
-    
-    # 归一化
-    rdt_state = (rdt_state - state_mean) / state_std
-    
+    # ⚠️ 重要：训练时State没有归一化，所以评估时也不能归一化！
+    # 如果归一化，模型会接收到完全不同的输入，导致输出错误
+    # 
+    # 错误的做法（会导致action全是负值）：
+    # rdt_state = (rdt_state - state_mean) / state_std
+    #
+    # 正确的做法：直接使用原始State值
     return torch.from_numpy(rdt_state).float()
 
 # 在模块级别加载统计信息和导入utils（避免重复）
