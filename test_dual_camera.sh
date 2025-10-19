@@ -21,7 +21,7 @@ export CUDA_VISIBLE_DEVICES=1
 
 python eval_sim/eval_rdt_libero.py \
   --config configs/base.yaml \
-  --pretrained checkpoints/single_task_scene7/checkpoint-19000/ema/model.safetensors \
+  --pretrained checkpoints/libero_finetune_single_task_2/checkpoint-20000/ema/model.safetensors \
   --text_encoder google/t5-v1_1-xxl \
   --vision_encoder google/siglip-so400m-patch14-384 \
   --benchmark libero_90 \
