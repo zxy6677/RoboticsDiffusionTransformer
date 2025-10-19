@@ -52,11 +52,11 @@ accelerate launch \
     --pretrained_model_name_or_path="checkpoints/rdt-1b" \
     --pretrained_text_encoder_name_or_path=$TEXT_ENCODER_NAME \
     --pretrained_vision_encoder_name_or_path=$VISION_ENCODER_NAME \
-    --output_dir=$OUTPUT_DIR \
+    --output_dir=/share_data/zhukefei/checkpoints/libero_finetune_single_task \
     --train_batch_size=4 \
     --sample_batch_size=8 \
     --max_train_steps=30000 \
-    --checkpointing_period=2000 \
+    --checkpointing_period=10000 \
     --sample_period=500 \
     --checkpoints_total_limit=20 \
     --lr_scheduler="constant" \
