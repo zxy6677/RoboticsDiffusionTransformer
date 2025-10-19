@@ -231,22 +231,41 @@ echo ""
 echo "6️⃣  预训练模型检查"
 echo "----------------------------------------"
 
-PRETRAINED_MODEL="checkpoints/rdt-1b/model.safetensors"
-if [ -f "$PRETRAINED_MODEL" ]; then
-    MODEL_SIZE=$(ls -lh "$PRETRAINED_MODEL" | awk '{print $5}')
-    check_pass "找到预训练模型: $PRETRAINED_MODEL ($MODEL_SIZE)"
-    
-    # 检查模型大小是否合理（应该是几GB）
-    MODEL_SIZE_BYTES=$(stat -f%z "$PRETRAINED_MODEL" 2>/dev/null || stat -c%s "$PRETRAINED_MODEL" 2>/dev/null)
+# 检查预训练模型（支持两种格式）
+PRETRAINED_DIR="checkpoints/rdt-1b"
+SAFETENSORS_MODEL="$PRETRAINED_DIR/model.safetensors"
+PYTORCH_MODEL="$PRETRAINED_DIR/pytorch_model.bin"
+
+if [ -f "$SAFETENSORS_MODEL" ]; then
+    MODEL_SIZE=$(ls -lh "$SAFETENSORS_MODEL" | awk '{print $5}')
+    check_pass "找到预训练模型: model.safetensors ($MODEL_SIZE)"
+    FOUND_MODEL="$SAFETENSORS_MODEL"
+elif [ -f "$PYTORCH_MODEL" ]; then
+    MODEL_SIZE=$(ls -lh "$PYTORCH_MODEL" | awk '{print $5}')
+    check_pass "找到预训练模型: pytorch_model.bin ($MODEL_SIZE)"
+    FOUND_MODEL="$PYTORCH_MODEL"
+else
+    check_fail "缺少预训练模型: $PRETRAINED_DIR/[model.safetensors|pytorch_model.bin]"
+    FOUND_MODEL=""
+fi
+
+# 检查模型大小是否合理（应该是几GB）
+if [ ! -z "$FOUND_MODEL" ]; then
+    MODEL_SIZE_BYTES=$(stat -f%z "$FOUND_MODEL" 2>/dev/null || stat -c%s "$FOUND_MODEL" 2>/dev/null)
     if [ ! -z "$MODEL_SIZE_BYTES" ]; then
         if [ "$MODEL_SIZE_BYTES" -gt 1000000000 ]; then  # > 1GB
-            check_pass "模型大小合理"
+            check_pass "模型大小合理 (>1GB)"
         else
             check_warn "模型文件较小，可能不完整"
         fi
     fi
-else
-    check_fail "缺少预训练模型: $PRETRAINED_MODEL"
+    
+    # 检查config.json
+    if [ -f "$PRETRAINED_DIR/config.json" ]; then
+        check_pass "找到模型配置: config.json"
+    else
+        check_warn "缺少config.json"
+    fi
 fi
 
 # 检查文本和视觉编码器
