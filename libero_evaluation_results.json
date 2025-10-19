@@ -1,15 +1,23 @@
 {
-  "total_tasks": 1,
+  "total_tasks": 2,
   "successful_tasks": 0,
-  "total_steps": 200,
+  "total_steps": 0,
   "task_results": [
     {
       "task_name": "KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet",
       "success": false,
-      "steps": 200,
-      "reward": 0.0
+      "steps": 1000,
+      "reward": 0,
+      "error": "executing action in terminated episode"
+    },
+    {
+      "task_name": "KITCHEN_SCENE10_close_the_top_drawer_of_the_cabinet_and_put_the_black_bowl_on_top_of_it",
+      "success": false,
+      "steps": 1000,
+      "reward": 0,
+      "error": "executing action in terminated episode"
     }
   ],
   "success_rate": 0.0,
-  "avg_steps": 200.0
+  "avg_steps": 0.0
 }

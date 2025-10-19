@@ -128,7 +128,10 @@ class VLAConsumerDataset(Dataset):
         if use_hdf5:
             # Use LIBERO dataset for fine-tuning
             if dataset_type == 'finetune':
-                self.hdf5_dataset = HDF5LIBERODataset()
+                # Pass the first dataset name from the config
+                # For multi-dataset training, we assume all datasets use the same format
+                dataset_name = DATASET_NAMES[0] if DATASET_NAMES else "libero_90"
+                self.hdf5_dataset = HDF5LIBERODataset(dataset_name=dataset_name)
             else:
                 self.hdf5_dataset = HDF5VLADataset()
         self.use_precomp_lang_embed = use_precomp_lang_embed
