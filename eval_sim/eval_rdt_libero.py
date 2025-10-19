@@ -542,14 +542,31 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
                 torch.manual_seed(task_idx * 1000 + step)
                 np.random.seed(task_idx * 1000 + step)
                 
-                # 准备图像输入
-                img = obs["agentview_image"]
-                images = [Image.fromarray(img), None, None]  # [cam_high, cam_right_wrist, cam_left_wrist]
-                print(f"      📷 图像形状: {img.shape}")
+                # 准备图像输入 - 使用训练时相同的摄像头配置
+                img_high = obs["agentview_image"]  # 第三人称视角
                 
-                # 录制视频帧
+                # 检查是否有手腕相机（eye_in_hand）
+                img_wrist = None
+                if "robot0_eye_in_hand_image" in obs:
+                    img_wrist = obs["robot0_eye_in_hand_image"]
+                
+                # 构建图像列表：[cam_high, cam_right_wrist, cam_left_wrist]
+                # 与训练时保持一致（训练时LIBERO使用agentview + eye_in_hand）
+                if img_wrist is not None:
+                    images = [Image.fromarray(img_high), Image.fromarray(img_wrist), None]
+                    if step == 0:
+                        print(f"      📷 使用2个摄像头: agentview + eye_in_hand")
+                        print(f"      📷 agentview形状: {img_high.shape}")
+                        print(f"      📷 eye_in_hand形状: {img_wrist.shape}")
+                else:
+                    images = [Image.fromarray(img_high), None, None]
+                    if step == 0:
+                        print(f"      📷 使用1个摄像头: agentview only")
+                        print(f"      📷 图像形状: {img_high.shape}")
+                
+                # 录制视频帧（使用主视角agentview）
                 if video_recorder is not None:
-                    video_recorder.add_frame(img)
+                    video_recorder.add_frame(img_high)
                 
                 # 转换状态
                 rdt_state = convert_libero_state_to_rdt(obs)
@@ -598,10 +615,9 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
                     obs, reward, done, info = env.step(libero_action)
                     task_steps += 1
                     
-                    # 录制视频帧
+                    # 录制视频帧（使用主视角agentview）
                     if video_recorder is not None and action_idx > 0:
-                        img = obs["agentview_image"]
-                        video_recorder.add_frame(img)
+                        video_recorder.add_frame(obs["agentview_image"])
                     
                     # 根据LIBERO标准：done=True 表示任务成功
                     if done:
