@@ -68,7 +68,8 @@ accelerate launch \
     --state_noise_snr=40 \
     --load_from_hdf5 \
     --gradient_accumulation_steps=1 \
-    --lr_warmup_steps=100
+    --lr_warmup_steps=100 \
+    --report_to="wandb"
 
 echo ""
 echo "============================================"
