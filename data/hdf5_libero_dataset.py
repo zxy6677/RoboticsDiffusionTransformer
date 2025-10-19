@@ -20,11 +20,33 @@ class HDF5LIBERODataset:
     This class is used to sample episodes from the LIBERO dataset
     stored in HDF5 files.
     """
-    def __init__(self) -> None:
+    def __init__(self, dataset_name: str = "libero_90") -> None:
         # The path to the HDF5 dataset directory
         # Each HDF5 file contains multiple episodes
-        self.HDF5_DIR = "data/datasets/libero_90/"
-        self.DATASET_NAME = "libero_90"
+        # Support environment variable for easy single-task testing
+        default_dir = f"data/datasets/{dataset_name}/"
+        self.HDF5_DIR = os.environ.get("LIBERO_DATASET_DIR", default_dir)
+        
+        # 自动检测：如果数据集路径包含 "libero_single_task"，使用单任务统计
+        # 这样可以确保loss weighting正确
+        dataset_dir = os.environ.get("LIBERO_DATASET_DIR", "")
+        if "libero_single_task" in dataset_dir or dataset_dir == "dataset_remote/":
+            # 检查dataset_stat.json中是否有libero_single_task
+            stat_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'dataset_stat.json')
+            if os.path.exists(stat_path):
+                with open(stat_path, 'r') as f:
+                    stats = json.load(f)
+                if 'libero_single_task' in stats:
+                    self.DATASET_NAME = "libero_single_task"
+                    print(f"🔍 检测到单任务训练，使用 libero_single_task 统计信息")
+                    print(f"   数据集路径: {self.HDF5_DIR}")
+                else:
+                    self.DATASET_NAME = dataset_name
+                    print(f"⚠️  警告：单任务训练但未找到 libero_single_task 统计，使用 {dataset_name}")
+            else:
+                self.DATASET_NAME = dataset_name
+        else:
+            self.DATASET_NAME = dataset_name
         
         self.file_paths = []
         for root, _, files in os.walk(self.HDF5_DIR):
@@ -32,12 +54,19 @@ class HDF5LIBERODataset:
                 file_path = os.path.join(root, filename)
                 self.file_paths.append(file_path)
                 
-        # Load the config
-        with open('configs/base.yaml', 'r') as file:
+        # Load the config (使用相对于当前文件的路径)
+        config_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'base.yaml')
+        with open(config_path, 'r') as file:
             config = yaml.safe_load(file)
         self.CHUNK_SIZE = config['common']['action_chunk_size']
         self.IMG_HISTORY_SIZE = config['common']['img_history_size']
         self.STATE_DIM = config['common']['state_dim']
+        
+        # Load global dataset statistics for normalization (使用相对于当前文件的路径)
+        stat_path = os.path.join(os.path.dirname(__file__), '..', 'configs', 'dataset_stat.json')
+        with open(stat_path, 'r') as f:
+            global_stats = json.load(f)
+        self.action_std_global = np.array(global_stats[self.DATASET_NAME]['action_std'])
     
         # Get each episode's len
         episode_lens = []
@@ -145,10 +174,9 @@ class HDF5LIBERODataset:
             ], axis=1)  # (T, 17)
             
             # Parse the state and action
-            state = libero_states[step_id:step_id+1]  # (1, 17)
+            state_17d = libero_states[step_id:step_id+1]  # (1, 17)
             state_std = np.std(libero_states, axis=0)
             state_mean = np.mean(libero_states, axis=0)
-            state_norm = np.sqrt(np.mean(libero_states**2, axis=0))
             
             # Get action sequence
             actions_seq = actions[step_id:step_id+self.CHUNK_SIZE]
@@ -196,17 +224,13 @@ class HDF5LIBERODataset:
                 范围: [-1, 1] 归一化范围，需要转换为物理单位
                 """
                 
-                # === 步骤1: 转换位置为物理单位（米） ===
+                # === 步骤1: 转换位置为物理单位（厘米） ===
                 # LIBERO: [-1, 1] 对应实际物理增量
-                # 通过数据分析，实际缩放因子约为 0.012，不是 0.05
+                # 关键修复：使用厘米而不是米，使Position与Orientation量级相同
+                # 0.012米 * 100 = 1.2厘米，与Orientation 6D(~1.0)量级接近
                 pos_normalized = values[:, 0:3]  # (T, 3) 归一化范围
-                pos_meters = pos_normalized * 0.012  # 转换为米 (物理单位)
-                
-                # === 步骤1.5: 坐标系转换 - 翻转所有位置轴 ===
-                # RDT预训练模型的坐标系与LIBERO相反，需要翻转
-                # 测试发现需要翻转X, Y, Z轴
-                pos_meters = -pos_meters  # 翻转所有位置轴
-                # 现在范围: 约 [-0.012, 0.012] 米（符号已翻转）
+                pos_cm = pos_normalized * 1.2  # 转换为厘米 (0.012米 = 1.2厘米)
+                # 现在范围: 约 [-1.2, 1.2] 厘米，与Orientation量级匹配！
                 
                 # === 步骤2: 转换旋转为物理单位（弧度） ===
                 # LIBERO: [-1, 1] 对应 [-0.5rad, 0.5rad] 的物理增量
@@ -225,7 +249,7 @@ class HDF5LIBERODataset:
                 
                 # === 步骤5: 组合为10D动作向量 ===
                 action_10d = np.concatenate([
-                    pos_meters,           # 位置：物理单位（米）
+                    pos_cm,              # 位置：厘米（与Orientation量级匹配）
                     ori_6d,              # 旋转：6D表示（从物理单位的弧度转换）
                     gripper_normalized   # Gripper：归一化到[0, 1]
                 ], axis=1)  # (T, 10)
@@ -249,12 +273,15 @@ class HDF5LIBERODataset:
                 uni_vec[..., UNI_ACTION_INDICES] = action_10d
                 return uni_vec
             
-            state = fill_in_state(state)
+            state = fill_in_state(state_17d)
             state_indicator = fill_in_state(np.ones_like(state_std))
             state_std = fill_in_state(state_std)
             state_mean = fill_in_state(state_mean)
-            state_norm = fill_in_state(state_norm)
             actions = fill_in_action(actions_seq)
+            
+            # 重要：使用全局action_std作为state_norm（用于loss weighting）
+            # README IMPORTANT 3: 不归一化物理量，保持物理意义
+            state_norm = self.action_std_global + 1e-8  # (128,)
             
             # Parse the images
             def parse_img(key):
