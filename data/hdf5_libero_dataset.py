@@ -120,8 +120,9 @@ class HDF5LIBERODataset:
             dict: a dictionary containing the training sample.
         """
         with h5py.File(file_path, 'r') as f:
-            # Get the first episode (LIBERO files contain multiple episodes)
-            episode_key = list(f['data'].keys())[0]
+            # Randomly select one episode from the file (LIBERO files contain multiple episodes)
+            episodes = list(f['data'].keys())
+            episode_key = np.random.choice(episodes)
             episode_data = f['data'][episode_key]
             
             # Get data shapes
@@ -341,8 +342,9 @@ class HDF5LIBERODataset:
             dict: a dictionary containing only the state information
         """
         with h5py.File(file_path, 'r') as f:
-            # Get the first episode
-            episode_key = list(f['data'].keys())[0]
+            # Randomly select one episode from the file
+            episodes = list(f['data'].keys())
+            episode_key = np.random.choice(episodes)
             episode_data = f['data'][episode_key]
             
             # Get data
