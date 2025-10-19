@@ -603,8 +603,9 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
                         img = obs["agentview_image"]
                         video_recorder.add_frame(img)
                     
+                    # 根据LIBERO标准：done=True 表示任务成功
                     if done:
-                        task_success = info.get("success", False)
+                        task_success = done  # 修复：直接使用done作为成功标志
                         print(f"      ✅ Episode在第{action_idx+1}步结束: 成功={task_success}")
                         break
                 
@@ -612,6 +613,14 @@ def evaluate_rdt_on_libero(model: RDTLIBEROModel,
                     break
                 
                 print(f"      📊 奖励: {reward:.3f}, 完成: {done}")
+            
+            # 最终检查：如果episode结束但还没标记成功，检查最终状态
+            if not task_success and not done:
+                # 检查最终状态是否成功
+                final_success = env.check_success()
+                if final_success:
+                    task_success = True
+                    print(f"  ⭐ 最终状态检查: 任务已成功!")
             
             # 记录结果
             task_result = {
