@@ -56,8 +56,9 @@ accelerate launch \
     --pretrained_text_encoder_name_or_path=$TEXT_ENCODER_NAME \
     --pretrained_vision_encoder_name_or_path=$VISION_ENCODER_NAME \
     --output_dir=/share_data/zhukefei/checkpoints/libero_finetune_single_task_full \
-    --train_batch_size=32 \
+    --train_batch_size=16 \
     --sample_batch_size=64 \
+    --gradient_accumulation_steps=2 \
     --max_train_steps=100000 \
     --checkpointing_period=2000 \
     --checkpoints_total_limit=30 \
