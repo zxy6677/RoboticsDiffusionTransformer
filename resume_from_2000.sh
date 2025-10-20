@@ -1,21 +1,7 @@
 #!/bin/bash
 
-# 改进的单任务训练 - 8xGPU版本
-# 基于RDT-1B论文的最佳实践
-
-# ============================================
-# 关键改进：
-# 1. gradient_accumulation_steps=2 → 有效batch size = 256 ⭐⭐⭐⭐⭐
-# 2. lr_warmup_steps=5000 ⭐⭐⭐⭐
-# 3. checkpointing_period=2000 （更频繁保存）
-# 4. checkpoints_total_limit=30 （保存更多）
-# 
-# 修复第2000步崩溃问题：
-# 5. sample_batch_size: 64→8 （防止采样时OOM）⭐⭐⭐⭐⭐
-# 6. sample_period: 500→1000 （降低采样频率）
-# 7. num_sample_batches: 2→1 （减少采样批次）
-# 8. dataloader_num_workers: 8→4 （降低内存压力）
-# ============================================
+# 从checkpoint-2000恢复训练（修复OOM问题）
+# 用于验证是否是sample_batch_size导致的崩溃
 
 export TEXT_ENCODER_NAME="google/t5-v1_1-xxl"
 export VISION_ENCODER_NAME="google/siglip-so400m-patch14-384"
@@ -36,25 +22,17 @@ fi
 # 使用8张GPU
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
-if [ ! -d "$OUTPUT_DIR" ]; then
-    mkdir -p "$OUTPUT_DIR"
-    echo "Folder '$OUTPUT_DIR' created"
-else
-    echo "Folder '$OUTPUT_DIR' already exists"
-fi
-
 echo "============================================"
-echo "改进的8-GPU训练配置（基于RDT-1B论文 + 崩溃修复）"
+echo "从checkpoint-2000恢复训练"
 echo "============================================"
-echo "关键改进："
-echo "  - 有效batch size: 16 * 2 * 8 = 256 ✅"
-echo "  - Warmup steps: 5000 ✅"
-echo "  - Checkpoint period: 2000 ✅"
-echo ""
-echo "崩溃修复（第2000步OOM）："
+echo "修复内容："
 echo "  - sample_batch_size: 64 → 8 ✅"
 echo "  - sample_period: 500 → 1000 ✅"
+echo "  - num_sample_batches: 2 → 1 ✅"
 echo "  - dataloader_workers: 8 → 4 ✅"
+echo ""
+echo "验证目标："
+echo "  - 如果能顺利通过第3000步采样 → 证实是OOM问题"
 echo "============================================"
 
 # 使用Accelerate启动多GPU训练
@@ -67,6 +45,7 @@ accelerate launch \
     --pretrained_text_encoder_name_or_path=$TEXT_ENCODER_NAME \
     --pretrained_vision_encoder_name_or_path=$VISION_ENCODER_NAME \
     --output_dir=/share_data/zhukefei/checkpoints/libero_finetune_single_task_full \
+    --resume_from_checkpoint="/share_data/zhukefei/checkpoints/libero_finetune_single_task_full/checkpoint-2000" \
     --train_batch_size=16 \
     --sample_batch_size=8 \
     --gradient_accumulation_steps=2 \
@@ -90,21 +69,4 @@ echo ""
 echo "============================================"
 echo "训练完成！"
 echo "============================================"
-echo ""
-echo "训练输出: $OUTPUT_DIR"
-echo ""
-echo "评估命令（使用改进的exec_horizon）："
-echo "python eval_sim/eval_rdt_libero.py \\"
-echo "  --config configs/base.yaml \\"
-echo "  --pretrained $OUTPUT_DIR/checkpoint-XXXX/ema/model.safetensors \\"
-echo "  --text_encoder google/t5-v1_1-xxl \\"
-echo "  --vision_encoder google/siglip-so400m-patch14-384 \\"
-echo "  --benchmark libero_90 \\"
-echo "  --num_tasks 2 \\"
-echo "  --max_steps 200 \\"
-echo "  --exec_horizon 16 \\"
-echo "  --record_video \\"
-echo "  --video_output_dir videos/improved_model_test"
-echo ""
-
 
